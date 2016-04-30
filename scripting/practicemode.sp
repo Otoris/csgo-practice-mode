@@ -62,6 +62,11 @@ ConVar g_GrenadeSpecTimeCvar;
 #define GRENADE_CATEGORY_LENGTH 128
 #define AUTH_LENGTH 64
 #define AUTH_METHOD AuthId_Steam2
+
+bool g_GrenadeKvFromMySQL = false;
+Database g_db;
+ArrayList g_newGrenades = null; // list of %s-%s (auth, grenadeid) added this session
+
 char g_GrenadeLocationsFile[PLATFORM_MAX_PATH];
 KeyValues g_GrenadeLocationsKv;
 int g_CurrentSavedGrenadeId[MAXPLAYERS+1];
@@ -118,6 +123,7 @@ Handle g_OnPracticeModeSettingsRead = INVALID_HANDLE;
 #include "practicemode/pugsetup_integration.sp"
 #include "practicemode/spawns.sp"
 #include "practicemode/commands.sp"
+#include "practicemode/sql_grenades.sp"
 
 
 public Plugin myinfo = {
@@ -255,6 +261,7 @@ public void OnPluginStart() {
         g_ClientColors[0][3] = 255;
     }
 
+    g_newGrenades = new ArrayList(AUTH_LENGTH + GRENADE_ID_LENGTH + 1);
     g_CTSpawns = new ArrayList();
     g_TSpawns = new ArrayList();
     g_KnownNadeCategories = new ArrayList(GRENADE_CATEGORY_LENGTH);
@@ -346,6 +353,22 @@ public void OnMapStart() {
         g_UpdatedGrenadeKv = false;
     }
 
+    g_GrenadeKvFromMySQL = false;
+    if (SQL_CheckConfig("practicemode")) {
+        char error[255];
+        if (g_db != null) {
+            g_db = SQL_Connect("practicemode", true, error, sizeof(error));
+            InitQueries(g_db);
+        }
+
+        if (g_db == null) {
+            LogError("Can't connect to practicemode db: %s", error);
+        } else {
+            FetchMapGrenades(g_GrenadeLocationsKv);
+            g_GrenadeKvFromMySQL = true;
+        }
+    }
+
     FindGrenadeCategories();
     FindMapSpawns();
 }
@@ -383,7 +406,12 @@ public void OnClientDisconnect(int client) {
 
 public void OnMapEnd() {
     if (g_UpdatedGrenadeKv) {
-        g_GrenadeLocationsKv.ExportToFile(g_GrenadeLocationsFile);
+        if (!g_GrenadeKvFromMySQL) {
+            UpdateNewGrenades(g_GrenadeLocationsKv, g_newGrenades);
+            newGrenades.Clear();
+        } else {
+            g_GrenadeLocationsKv.ExportToFile(g_GrenadeLocationsFile);
+        }
         g_UpdatedGrenadeKv = false;
     }
 

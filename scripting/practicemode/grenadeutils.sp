@@ -120,6 +120,10 @@ public int SaveGrenadeToKv(int client, const float origin[3], const float angles
 
     g_GrenadeLocationsKv.GoBack();
     g_GrenadeLocationsKv.GoBack();
+
+    char newInfo[GRENADE_ID_LENGTH + AUTH_LENGTH + 1];
+    Format(newInfo, sizeof(newInfo), "%s-%s", auth, idStr);
+    g_newGrenades.PushString(newInfo);
     return nadeId;
 }
 
